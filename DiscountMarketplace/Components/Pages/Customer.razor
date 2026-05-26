@@ -1,26 +1,132 @@
 ﻿@page "/customer"
+@using DiscountMarketplace.Models
+@using DiscountMarketplace.Interfaces
 @using DiscountMarketplace.Services
+@rendermode InteractiveServer
 
+@inject IDealService DealService
+@inject ICouponService CouponService
 @inject AuthService Auth
 @inject NavigationManager Nav
 
+<PageTitle>Доступні акції</PageTitle>
 
-<h3>Сторінка користувача</h3>
+<div class="container mt-4">
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="alert">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🔥 Актуальні пропозиції</h2>
+        <span class="badge bg-primary">Ваш баланс: Купонів придбано (@userCouponsCount)</span>
+    </div>
+
+    @if (deals == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p>Шукаємо найкращі знижки...</p>
+        </div>
+    }
+    else if (!deals.Any(d => d.IsActive))
+    {
+        <div class="alert alert-info">На жаль, активних акцій зараз немає. Зайдіть пізніше!</div>
+    }
+    else
+    {
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            @foreach (var deal in deals.Where(d => d.IsActive))
+            {
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        @if (!string.IsNullOrEmpty(deal.ImageUrl))
+                        {
+                            <img src="@deal.ImageUrl" class="card-img-top" alt="@deal.Title" style="height: 200px; object-fit: cover;">
+                        }
+                        else
+                        {
+                            <div class="bg-light text-center py-5" style="height: 200px;">
+                                <i class="bi bi-tag-fill" style="font-size: 3rem; color: #ccc;"></i>
+                            </div>
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">@deal.Title</h5>
+                            <p class="card-text text-muted">@deal.Description</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="h4 mb-0 text-success">@deal.DiscountPercent% OFF</span>
+                                <small class="text-muted">До: @deal.EndDate.ToShortDateString()</small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white border-top-0">
+                            <button class="btn btn-primary w-100" @onclick="() => BuyCoupon(deal)">
+                                <i class="bi bi-cart-plus"></i> Отримати купон
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
 
 @code {
+    private List<Deal>? deals;
+    private string? statusMessage;
+    private string? statusClass;
+    private int userCouponsCount = 0;
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender)
+          if (Auth.CurrentUser == null || !Auth.IsCustomer)
         {
-            if (!Auth.IsCustomer)
-            {
-                Nav.NavigateTo("/login");
-            }
-            else
-            {
-                StateHasChanged();
-            }
+            Nav.NavigateTo("/login");
+            return;
         }
+
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        deals = DealService.GetAll();
+
+        var allCoupons = CouponService.GetAll();
+        userCouponsCount = allCoupons.Count(c => c.UserId == Auth.CurrentUser.UserId);
+    }
+
+    private void BuyCoupon(Deal deal)
+    {
+        try
+        {
+            var newCoupon = new Coupon
+                {
+                    UserId = Auth.CurrentUser.UserId,
+                    DealId = deal.DealId,
+                    Code = Guid.NewGuid().ToString().Substring(0, 8).ToUpper(),
+                    Status = "Active", 
+                    CreatedAt = DateTime.Now,
+                    ExpirationDate = DateTime.Now.AddDays(30)
+                };
+
+            CouponService.Create(newCoupon);
+
+            ShowStatus($"Вітаємо! Ви придбали купон на '{deal.Title}'. Код: {newCoupon.Code}");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка при купівлі: " + ex.Message, false);
+        }
+    }
+
+    private void ShowStatus(string message, bool isSuccess = true)
+    {
+        statusMessage = message;
+        statusClass = isSuccess ? "alert-success" : "alert-danger";
+        StateHasChanged();
     }
 }
