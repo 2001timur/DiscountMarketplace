@@ -1,0 +1,26 @@
+﻿@page "/customer"
+@using DiscountMarketplace.Services
+
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+
+<h3>Сторінка користувача</h3>
+
+@code {
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (!Auth.IsCustomer)
+            {
+                Nav.NavigateTo("/login");
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+    }
+}

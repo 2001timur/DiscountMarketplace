@@ -1,4 +1,8 @@
-﻿@inherits LayoutComponentBase
+﻿@using DiscountMarketplace.Services
+@inherits LayoutComponentBase
+@inject AuthService Auth
+@inject NavigationManager Nav
+@implements IDisposable
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +11,19 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            @if (Auth.CurrentUser != null)
+            {
+                <div class="user-info-header">
+                    <span class="me-3">Вітаю, <strong>@Auth.CurrentUser.FullName</strong>!</span>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="HandleLogout">
+                        Вийти
+                    </button>
+                </div>
+            }
+            else
+            {
+                <a href="login">Увійти</a>
+            }
         </div>
 
         <article class="content px-4">
@@ -16,8 +32,20 @@
     </main>
 </div>
 
-<div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
-</div>
+@code {
+    protected override void OnInitialized()
+    {
+        Auth.OnNotify += StateHasChanged;
+    }
+
+    private void HandleLogout()
+    {
+        Auth.Logout();
+        Nav.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+         Auth.OnNotify -= StateHasChanged;
+    }
+}

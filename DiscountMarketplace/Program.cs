@@ -22,6 +22,7 @@ namespace DiscountMarketplace
             builder.Services.AddScoped<IServiceCategoryService, ServiceCategoryService>();
             builder.Services.AddScoped<IDealService, DealService>();
             builder.Services.AddScoped<ICouponService, CouponService>();
+            builder.Services.AddScoped<AuthService>();
 
 
             // Add services to the container.

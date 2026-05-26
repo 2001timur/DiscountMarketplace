@@ -1,0 +1,26 @@
+﻿@page "/businessowner"
+@using DiscountMarketplace.Services
+
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<h3>Сторінка власника бізнеса</h3>
+
+
+@code {
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (!Auth.IsBusinessOwner)
+            {
+                Nav.NavigateTo("/login");
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+    }
+}

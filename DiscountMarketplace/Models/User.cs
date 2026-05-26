@@ -24,4 +24,6 @@ public partial class User
     public virtual ICollection<Business> Businesses { get; set; } = new List<Business>();
 
     public virtual ICollection<Coupon> Coupons { get; set; } = new List<Coupon>();
+
+    public string FullName { get { return $"{FirstName} {LastName}"; } }
 }
