@@ -1,0 +1,253 @@
+﻿@page "/businesses"
+@using DiscountMarketplace.Models
+@using DiscountMarketplace.Interfaces
+@rendermode InteractiveServer
+@inject IBusinessService BusinessService
+@inject IUserService UserService
+
+<PageTitle>Керування бізнесами</PageTitle>
+
+<div class="container mt-4">
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="alert">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Бізнеси</h2>
+        <button class="btn btn-primary" @onclick="PrepareCreate">
+            <i class="bi bi-plus-circle"></i> Додати бізнес
+        </button>
+    </div>
+
+    @if (businesses == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p>Завантаження даних...</p>
+        </div>
+    }
+    else
+    {
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Назва</th>
+                    <th>Власник</th>
+                    <th>Телефон</th>
+                    <th>Email</th>
+                    <th>Адреса</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in businesses)
+                {
+                    <tr>
+                        <td><strong>@b.Name</strong></td>
+                        <td>@(b.OwnerUser?.FirstName + " " + b.OwnerUser?.LastName)</td>
+                        <td>@b.Phone</td>
+                        <td>@b.Email</td>
+                        <td>@b.Address</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-warning me-2" @onclick="() => PrepareEdit(b)">Редагувати</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteBusiness(b.BusinessId)">Видалити</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@if (isEditing)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(currentBusiness.BusinessId == 0 ? "Новий бізнес" : "Редагування бізнесу")</h5>
+                    <button type="button" class="btn-close" @onclick="Cancel"></button>
+                </div>
+                <div class="modal-body">
+                    @* Повідомлення про помилку всередині модального вікна *@
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger">@modalError</div>
+                    }
+
+                    <EditForm Model="@currentBusiness" OnValidSubmit="SaveBusiness">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger small" />
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Назва бізнесу</label>
+                                <InputText class="form-control" @bind-Value="currentBusiness.Name" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Власник</label>
+                                <InputSelect class="form-select" @bind-Value="currentBusiness.OwnerUserId">
+                                    <option value="0">-- Оберіть власника --</option>
+                                    @if (availableUsers != null)
+                                    {
+                                        @foreach (var user in availableUsers)
+                                        {
+                                            <option value="@user.UserId">@user.FirstName @user.LastName (@user.Email)</option>
+                                        }
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Опис</label>
+                            <InputTextArea class="form-control" @bind-Value="currentBusiness.Description" rows="2" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Телефон</label>
+                                <InputText class="form-control" @bind-Value="currentBusiness.Phone" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Email</label>
+                                <InputText class="form-control" @bind-Value="currentBusiness.Email" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Адреса</label>
+                            <InputText class="form-control" @bind-Value="currentBusiness.Address" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">URL Логотипу</label>
+                            <InputText class="form-control" @bind-Value="currentBusiness.LogoUrl" />
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="button" class="btn btn-secondary me-2" @onclick="Cancel">Скасувати</button>
+                            <button type="submit" class="btn btn-success" disabled="@(currentBusiness.OwnerUserId == 0)">Зберегти</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Business>? businesses;
+    private List<User>? availableUsers;
+    private Business currentBusiness = new();
+    private bool isEditing = false;
+
+    private string? statusMessage;
+    private string statusClass = "alert-success";
+    private string? modalError;
+
+    protected override void OnInitialized()
+    {
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        try
+        {
+            businesses = BusinessService.GetAll();
+            availableUsers = UserService.GetAll();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка завантаження даних: " + ex.Message, false);
+        }
+    }
+
+    private void PrepareCreate()
+    {
+        modalError = null;
+        currentBusiness = new Business();
+        isEditing = true;
+    }
+
+    private void PrepareEdit(Business b)
+    {
+        modalError = null;
+        currentBusiness = new Business
+            {
+                BusinessId = b.BusinessId,
+                OwnerUserId = b.OwnerUserId,
+                Name = b.Name,
+                Description = b.Description,
+                Address = b.Address,
+                Phone = b.Phone,
+                Email = b.Email,
+                LogoUrl = b.LogoUrl,
+                CreatedAt = b.CreatedAt
+            };
+        isEditing = true;
+    }
+
+    private void SaveBusiness()
+    {
+        try
+        {
+            modalError = null;
+            if (currentBusiness.BusinessId == 0)
+            {
+                BusinessService.Create(currentBusiness);
+                ShowStatus("Бізнес успішно створено!");
+            }
+            else
+            {
+                BusinessService.Update(currentBusiness);
+                ShowStatus("Дані бізнесу оновлено!");
+            }
+
+            isEditing = false;
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            modalError = "Не вдалося зберегти: " + ex.Message;
+        }
+    }
+
+    private void DeleteBusiness(int id)
+    {
+        try
+        {
+            BusinessService.Delete(id);
+            ShowStatus("Бізнес видалено.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка видалення: " + ex.Message, false);
+        }
+    }
+
+    private void ShowStatus(string message, bool isSuccess = true)
+    {
+        statusMessage = message;
+        statusClass = isSuccess ? "alert-success" : "alert-danger";
+
+        Task.Delay(5000).ContinueWith(_ =>
+        {
+            statusMessage = null;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void Cancel()
+    {
+        isEditing = false;
+        modalError = null;
+    }
+}

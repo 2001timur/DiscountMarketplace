@@ -1,0 +1,265 @@
+﻿@page "/coupons"
+@using DiscountMarketplace.Models
+@using DiscountMarketplace.Interfaces
+@rendermode InteractiveServer
+@inject ICouponService CouponService
+@inject IDealService DealService
+@inject IUserService UserService
+
+<PageTitle>Керування купонами</PageTitle>
+
+<div class="container mt-4">
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="alert">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Купони користувачів</h2>
+        <button class="btn btn-primary" @onclick="PrepareCreate">
+            <i class="bi bi-plus-circle"></i> Видати купон вручну
+        </button>
+    </div>
+
+    @if (coupons == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p><em>Завантаження...</em></p>
+        </div>
+    }
+    else
+    {
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Код</th>
+                    <th>Акція</th>
+                    <th>Користувач</th>
+                    <th>Статус</th>
+                    <th>Дійсний до</th>
+                    <th>Використано</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in coupons)
+                {
+                    <tr>
+                        <td><code class="fw-bold text-dark">@c.Code</code></td>
+                        <td>@c.Deal?.Title</td>
+                        <td>@c.User?.Email</td>
+                        <td>
+                            @switch (c.Status)
+                            {
+                                case "Active":
+                                    <span class="badge bg-success">Активний</span>
+                                    break;
+                                case "Used":
+                                    <span class="badge bg-secondary">Використаний</span>
+                                    break;
+                                case "Expired":
+                                    <span class="badge bg-danger">Протермінований</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-info">@c.Status</span>
+                                    break;
+                            }
+                        </td>
+                        <td>@c.ExpirationDate.ToShortDateString()</td>
+                        <td>@(c.UsedAt?.ToString("g") ?? "-")</td>
+                        <td>
+                            @if (c.Status == "Active")
+                            {
+                                <button class="btn btn-sm btn-outline-success me-2" @onclick="() => MarkAsUsed(c.CouponId)">
+                                    Використати
+                                </button>
+                            }
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => DeleteCoupon(c.CouponId)"
+                                    disabled="@(c.Status == "Active")">
+                                Видалити
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@if (isEditing)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Видача купона</h5>
+                    <button type="button" class="btn-close" @onclick="Cancel"></button>
+                </div>
+                <div class="modal-body">
+                    @* Повідомлення про помилку всередині модального вікна *@
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger">@modalError</div>
+                    }
+
+                    <EditForm Model="@currentCoupon" OnValidSubmit="SaveCoupon">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger small" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Оберіть акцію</label>
+                            <InputSelect class="form-select" @bind-Value="currentCoupon.DealId">
+                                <option value="0">-- Оберіть акцію --</option>
+                                @foreach (var deal in availableDeals)
+                                {
+                                    <option value="@deal.DealId">@deal.Title</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Оберіть користувача</label>
+                            <InputSelect class="form-select" @bind-Value="currentCoupon.UserId">
+                                <option value="0">-- Оберіть клієнта --</option>
+                                @foreach (var user in availableUsers)
+                                {
+                                    <option value="@user.UserId">@user.Email (@user.FirstName)</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Код купона (можна лишити пустим для автогенерації)</label>
+                            <InputText class="form-control" @bind-Value="currentCoupon.Code" placeholder="Напр: SAVE50-2024" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Дійсний до</label>
+                            <InputDate class="form-control" @bind-Value="currentCoupon.ExpirationDate" />
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="button" class="btn btn-secondary me-2" @onclick="Cancel">Скасувати</button>
+                            <button type="submit" class="btn btn-success"
+                                    disabled="@(currentCoupon.DealId == 0 || currentCoupon.UserId == 0)">
+                                Створити
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Coupon>? coupons;
+    private List<Deal> availableDeals = new();
+    private List<User> availableUsers = new();
+
+    private Coupon currentCoupon = new();
+    private bool isEditing = false;
+
+    // Змінні для сповіщень
+    private string? statusMessage;
+    private string statusClass = "alert-success";
+    private string? modalError;
+
+    protected override void OnInitialized()
+    {
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        try
+        {
+            coupons = CouponService.GetAll();
+            availableDeals = DealService.GetAll();
+            availableUsers = UserService.GetAll();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка завантаження даних: " + ex.Message, false);
+        }
+    }
+
+    private void PrepareCreate()
+    {
+        modalError = null;
+        currentCoupon = new Coupon
+            {
+                ExpirationDate = DateTime.Now.AddDays(7),
+                Code = Guid.NewGuid().ToString().Substring(0, 8).ToUpper()
+            };
+        isEditing = true;
+    }
+
+    private void SaveCoupon()
+    {
+        try
+        {
+            modalError = null;
+            CouponService.Create(currentCoupon);
+            ShowStatus("Купон успішно створено та видано!");
+            isEditing = false;
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            modalError = "Не вдалося створити купон: " + ex.Message;
+        }
+    }
+
+    private void MarkAsUsed(int id)
+    {
+        try
+        {
+            CouponService.MarkAsUsed(id);
+            ShowStatus("Купон позначено як використаний.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Не вдалося оновити статус купона: " + ex.Message, false);
+        }
+    }
+
+    private void DeleteCoupon(int id)
+    {
+        try
+        {
+            CouponService.Delete(id);
+            ShowStatus("Купон видалено.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка видалення: " + ex.Message, false);
+        }
+    }
+
+    private void ShowStatus(string message, bool isSuccess = true)
+    {
+        statusMessage = message;
+        statusClass = isSuccess ? "alert-success" : "alert-danger";
+
+        Task.Delay(5000).ContinueWith(_ =>
+        {
+            statusMessage = null;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void Cancel()
+    {
+        isEditing = false;
+        modalError = null;
+    }
+}

@@ -1,0 +1,319 @@
+﻿@page "/deals"
+@using DiscountMarketplace.Models
+@using DiscountMarketplace.Interfaces
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@rendermode InteractiveServer
+@inject IDealService DealService
+@inject IBusinessService BusinessService
+@inject IServiceCategoryService CategoryService
+
+<PageTitle>Керування акціями</PageTitle>
+
+<div class="container mt-4">
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="alert">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Акції та пропозиції</h2>
+        <button class="btn btn-primary" @onclick="PrepareCreate">
+            <i class="bi bi-plus-circle"></i> Створити акцію
+        </button>
+    </div>
+
+    @if (deals == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p><em>Завантаження...</em></p>
+        </div>
+    }
+    else
+    {
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Назва</th>
+                    <th>Бізнес</th>
+                    <th>Категорія</th>
+                    <th>Ціна (Знижка)</th>
+                    <th>Купони</th>
+                    <th>Період</th>
+                    <th>Статус</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var deal in deals)
+                {
+                    <tr>
+                        <td><strong>@deal.Title</strong></td>
+                        <td>@deal.Business?.Name</td>
+                        <td><span class="badge bg-secondary">@deal.Category?.Name</span></td>
+                        <td>
+                            <del class="text-muted small">@deal.OriginalPrice</del>
+                            <span class="text-danger fw-bold">@deal.DiscountPrice</span>
+                            <span class="badge bg-success">@deal.DiscountPercent%</span>
+                        </td>
+                        <td>
+                            <span class="fw-bold">@(deal.Coupons?.Count ?? 0)</span>
+                            <span class="text-muted">/ @deal.CouponLimit</span>
+                        </td>
+                        <td class="small">
+                            @deal.StartDate.ToShortDateString() - @deal.EndDate.ToShortDateString()
+                        </td>
+                        <td>
+                            @if (deal.IsActive == true && deal.EndDate >= DateTime.Now && deal.StartDate <= DateTime.Now)
+                            {
+                                <span class="badge bg-primary">Активна</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Неактивна</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-warning me-2" @onclick="() => PrepareEdit(deal)">Редагувати</button>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => DeleteDeal(deal.DealId)"
+                                    disabled="@(deal.CouponLimit - (deal.Coupons?.Count ?? 0) > 0)">
+                                Видалити
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@if (isEditing)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5); overflow-y: auto;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(currentDeal.DealId == 0 ? "Створення акції" : "Редагування акції")</h5>
+                    <button type="button" class="btn-close" @onclick="Cancel"></button>
+                </div>
+                <div class="modal-body">
+                    @* Повідомлення про помилку всередині модального вікна *@
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger">@modalError</div>
+                    }
+
+                    <EditForm Model="@currentDeal" OnValidSubmit="SaveDeal">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger small" />
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Заголовок акції</label>
+                                <InputText class="form-control" @bind-Value="currentDeal.Title" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Бізнес</label>
+                                <InputSelect class="form-select" @bind-Value="currentDeal.BusinessId">
+                                    <option value="0">-- Оберіть бізнес --</option>
+                                    @foreach (var b in businesses)
+                                    {
+                                        <option value="@b.BusinessId">@b.Name</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Категорія</label>
+                                <InputSelect class="form-select" @bind-Value="currentDeal.CategoryId">
+                                    <option value="0">-- Оберіть категорію --</option>
+                                    @foreach (var c in categories)
+                                    {
+                                        <option value="@c.CategoryId">@c.Name</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Початкова ціна</label>
+                                <InputNumber class="form-control" @bind-Value="currentDeal.OriginalPrice" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Знижка %</label>
+                                <InputNumber class="form-control" @bind-Value="currentDeal.DiscountPercent" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Ліміт купонів</label>
+                                <InputNumber class="form-control" @bind-Value="currentDeal.CouponLimit" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Дата початку</label>
+                                <InputDate class="form-control" @bind-Value="currentDeal.StartDate" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Дата завершення</label>
+                                <InputDate class="form-control" @bind-Value="currentDeal.EndDate" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Опис акції</label>
+                            <InputTextArea class="form-control" @bind-Value="currentDeal.Description" rows="3" />
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="currentDeal.IsActive" id="isActiveSwitch" />
+                                <label class="form-check-label" for="isActiveSwitch">Активна пропозиція</label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="button" class="btn btn-secondary me-2" @onclick="Cancel">Скасувати</button>
+                            <button type="submit" class="btn btn-success"
+                                    disabled="@(currentDeal.BusinessId == 0 || currentDeal.CategoryId == 0)">
+                                Зберегти
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Deal>? deals;
+    private List<Business> businesses = new();
+    private List<Servicecategory> categories = new();
+
+    private Deal currentDeal = new();
+    private bool isEditing = false;
+
+    private string? statusMessage;
+    private string statusClass = "alert-success";
+    private string? modalError;
+
+    protected override void OnInitialized()
+    {
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        try
+        {
+            deals = DealService.GetAll();
+            businesses = BusinessService.GetAll();
+            categories = CategoryService.GetAll();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка завантаження даних: " + ex.Message, false);
+        }
+    }
+
+    private void PrepareCreate()
+    {
+        modalError = null;
+        currentDeal = new Deal
+            {
+                StartDate = DateTime.Now,
+                EndDate = DateTime.Now.AddDays(30),
+                IsActive = true
+            };
+        isEditing = true;
+    }
+
+    private void PrepareEdit(Deal deal)
+    {
+        modalError = null;
+        currentDeal = new Deal
+            {
+                DealId = deal.DealId,
+                BusinessId = deal.BusinessId,
+                CategoryId = deal.CategoryId,
+                Title = deal.Title,
+                Description = deal.Description,
+                OriginalPrice = deal.OriginalPrice,
+                DiscountPercent = deal.DiscountPercent,
+                DiscountPrice = deal.DiscountPrice,
+                StartDate = deal.StartDate,
+                EndDate = deal.EndDate,
+                CouponLimit = deal.CouponLimit,
+                ImageUrl = deal.ImageUrl,
+                IsActive = deal.IsActive
+            };
+        isEditing = true;
+    }
+
+    private void SaveDeal()
+    {
+        try
+        {
+            modalError = null;
+            if (currentDeal.DealId == 0)
+            {
+                DealService.Create(currentDeal);
+                ShowStatus("Акцію успішно створено!");
+            }
+            else
+            {
+                DealService.Update(currentDeal);
+                ShowStatus("Акцію успішно оновлено!");
+            }
+
+            isEditing = false;
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            modalError = "Не вдалося зберегти акцію: " + ex.Message;
+        }
+    }
+
+    private void DeleteDeal(int id)
+    {
+        try
+        {
+            DealService.Delete(id);
+            ShowStatus("Акцію видалено.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Помилка видалення: " + ex.Message, false);
+        }
+    }
+
+    private void ShowStatus(string message, bool isSuccess = true)
+    {
+        statusMessage = message;
+        statusClass = isSuccess ? "alert-success" : "alert-danger";
+
+        Task.Delay(5000).ContinueWith(_ =>
+        {
+            statusMessage = null;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void Cancel()
+    {
+        isEditing = false;
+        modalError = null;
+    }
+}
