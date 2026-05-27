@@ -1,0 +1,75 @@
+﻿@page "/my-coupons"
+@using DiscountMarketplace.Models
+@using DiscountMarketplace.Interfaces
+@using DiscountMarketplace.Services
+@rendermode InteractiveServer
+
+@inject ICouponService CouponService
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<div class="container mt-4">
+    <h2>🎫 Мої купони</h2>
+
+    @if (userCoupons == null)
+    {
+        <p>Завантаження...</p>
+    }
+    else if (!userCoupons.Any())
+    {
+        <div class="alert alert-info">Ви ще не придбали жодного купона.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover mt-3">
+                <thead class="table-light">
+                    <tr>
+                        <th>Акція</th>
+                        <th>Код купона</th>
+                        <th>Дата придбання</th>
+                        <th>Дійсний до</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var coupon in userCoupons)
+                    {
+                        <tr>
+                            <td><strong>@coupon.Deal?.Title</strong></td>
+                            <td><code class="h6">@coupon.Code</code></td>
+                            <td>@coupon.CreatedAt.ToShortDateString()</td>
+                            <td>@coupon.ExpirationDate.ToShortDateString()</td>
+                            <td>
+                                <span class="badge @(coupon.Status == "Active" ? "bg-success" : "bg-secondary")">
+                                    @coupon.Status
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <button class="btn btn-outline-primary mt-3" @onclick='() => Nav.NavigateTo("/customer")'>
+        Повернутися до акцій
+    </button>
+</div>
+
+@code {
+    private List<Coupon>? userCoupons;
+
+    protected override void OnInitialized()
+    {
+        if (Auth.CurrentUser == null)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        var all = CouponService.GetAll();
+        userCoupons = all.Where(c => c.UserId == Auth.CurrentUser.UserId)
+                         .OrderBy(c => c.CreatedAt)
+                         .ToList();
+    }
+}

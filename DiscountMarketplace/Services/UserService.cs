@@ -1,5 +1,6 @@
 ﻿using DiscountMarketplace.Interfaces;
 using DiscountMarketplace.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace DiscountMarketplace.Services;
@@ -7,6 +8,7 @@ namespace DiscountMarketplace.Services;
 public class UserService: IUserService
 {
     private readonly MarketplaceContext _context;
+    private readonly PasswordHasher<User> _hasher = new();
 
     public UserService(MarketplaceContext context)
     {
@@ -32,9 +34,20 @@ public class UserService: IUserService
     public void Create(User user)
     {
         user.CreatedAt = DateTime.Now;
+        user.PasswordHash = _hasher.HashPassword(user, user.PasswordHash);
 
         _context.Users.Add(user);
         _context.SaveChanges();
+    }
+
+    public User? Authenticate(string email, string password)
+    {
+        var user = _context.Users.FirstOrDefault(u => u.Email == email);
+        if (user == null) return null;
+
+        var result = _hasher.VerifyHashedPassword(user, user.PasswordHash, password);
+
+        return result == PasswordVerificationResult.Success ? user : null;
     }
 
     public void Update(User user)

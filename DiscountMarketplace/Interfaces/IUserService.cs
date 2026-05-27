@@ -12,4 +12,5 @@ public interface IUserService
     User? GetByEmail(string email);
     bool IsAdmin(int userId);
     bool IsBusinessOwner(int userId);
+    User? Authenticate(string email, string password);
 }

@@ -22,7 +22,11 @@
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>🔥 Актуальні пропозиції</h2>
-        <span class="badge bg-primary">Ваш баланс: Купонів придбано (@userCouponsCount)</span>
+        <NavLink href="/my-coupons" class="btn btn-outline-primary d-flex align-items-center">
+            <i class="bi bi-ticket-perforated me-2"></i>
+            <span>Мої купони </span>
+            <span class="badge bg-primary ms-2">@userCouponsCount</span>
+        </NavLink>
     </div>
 
     @if (deals == null)
@@ -41,29 +45,54 @@
         <div class="row row-cols-1 row-cols-md-3 g-4">
             @foreach (var deal in deals.Where(d => d.IsActive))
             {
+            
                 <div class="col">
                     <div class="card h-100 shadow-sm">
+           
                         @if (!string.IsNullOrEmpty(deal.ImageUrl))
                         {
-                            <img src="@deal.ImageUrl" class="card-img-top" alt="@deal.Title" style="height: 200px; object-fit: cover;">
+                            <img src="@deal.ImageUrl"
+                                 class="card-img-top"
+                                 alt="@deal.Title"
+                                 style="height: 200px; object-fit: cover;">
                         }
                         else
                         {
                             <div class="bg-light text-center py-5" style="height: 200px;">
-                                <i class="bi bi-tag-fill" style="font-size: 3rem; color: #ccc;"></i>
+                                <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                <p class="text-muted">Немає фото</p>
                             </div>
                         }
+                    
+
                         <div class="card-body">
                             <h5 class="card-title text-primary">@deal.Title</h5>
-                            <p class="card-text text-muted">@deal.Description</p>
+                            <p class="card-text text-muted" style="height: 3rem; overflow: hidden;">@deal.Description</p>
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">В наявності:</small>
+                                    @* Виводимо лише одне число *@
+                                    <span class="badge @(deal.CouponLimit > 0 ? "bg-success" : "bg-danger")">
+                                        @deal.CouponLimit шт.
+                                    </span>
+                                </div>
+                           
+                            </div>
+
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="h4 mb-0 text-success">@deal.DiscountPercent% OFF</span>
                                 <small class="text-muted">До: @deal.EndDate.ToShortDateString()</small>
                             </div>
                         </div>
+
                         <div class="card-footer bg-white border-top-0">
-                            <button class="btn btn-primary w-100" @onclick="() => BuyCoupon(deal)">
-                                <i class="bi bi-cart-plus"></i> Отримати купон
+                            @* Блокуємо кнопку, якщо доступна кількість <= 0 *@
+                            <button class="btn @(deal.CouponLimit > 0 ? "btn-primary" : "btn-secondary") w-100"
+                                    @onclick="() => BuyCoupon(deal)"
+                                    disabled="@(deal.CouponLimit <= 0)">
+                                <i class="bi @(deal.CouponLimit > 0 ? "bi-cart-plus" : "bi-x-circle")"></i>
+                                @(deal.CouponLimit > 0 ? "Отримати купон" : "Закінчились")
                             </button>
                         </div>
                     </div>
@@ -79,9 +108,9 @@
     private string? statusClass;
     private int userCouponsCount = 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-          if (Auth.CurrentUser == null || !Auth.IsCustomer)
+        if (Auth.CurrentUser == null || !Auth.IsCustomer)
         {
             Nav.NavigateTo("/login");
             return;

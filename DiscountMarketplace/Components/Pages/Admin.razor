@@ -11,21 +11,11 @@
 
     protected override void OnInitialized()
     {
-        StateHasChanged();
-    }
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
+        if (Auth.CurrentUser == null || !Auth.IsAdmin)
         {
-            if (!Auth.IsAdmin)
-            {
-                Nav.NavigateTo("/login");
-            }
-            else
-            {
-                StateHasChanged();
-            }
+            Nav.NavigateTo("/login");
+            return;
         }
     }
+
 }

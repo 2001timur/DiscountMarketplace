@@ -1,26 +1,234 @@
 ﻿@page "/businessowner"
+@using DiscountMarketplace.Models
+@using DiscountMarketplace.Interfaces
 @using DiscountMarketplace.Services
+@rendermode InteractiveServer
 
+@inject IBusinessService BusinessService
+@inject IDealService DealService
+@inject IServiceCategoryService CategoryService
 @inject AuthService Auth
 @inject NavigationManager Nav
 
-<h3>Сторінка власника бізнеса</h3>
+<div class="container mt-4">
+    <h3 class="mb-4">🏢 Панель управління бізнесом</h3>
 
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "businesses" ? "active" : "")" @onclick='() => activeTab = "businesses"'>Мої заклади</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "deals" ? "active" : "")" @onclick='() => activeTab = "deals"'>Мої акції</button>
+        </li>
+    </ul>
 
-@code {
-
-    protected override void OnAfterRender(bool firstRender)
+    @if (activeTab == "businesses")
     {
-        if (firstRender)
-        {
-            if (!Auth.IsBusinessOwner)
+        <div class="d-flex justify-content-between mb-3">
+            <h4>Ваші зареєстровані заклади</h4>
+            <button class="btn btn-primary" @onclick="PrepareCreateBusiness">Додати заклад</button>
+        </div>
+
+        <div class="row row-cols-1 row-cols-md-2 g-4">
+            @foreach (var b in myBusinesses)
             {
-                Nav.NavigateTo("/login");
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">@b.Name</h5>
+                            <p class="card-text text-muted">@b.Address</p>
+                            <div class="d-flex justify-content-between">
+                                <span class="badge bg-info">Акцій: @b.Deals.Count</span>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditBusiness(b)">Редагувати</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between mb-3">
+            <h4>Активні акції</h4>
+            @if (myBusinesses.Any())
+            {
+                <button class="btn btn-success" @onclick="PrepareCreateDeal">Створити акцію</button>
             }
             else
             {
-                StateHasChanged();
+                <span class="text-danger">Спочатку додайте хоча б один заклад!</span>
             }
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Назва</th>
+                        <th>Заклад</th>
+                        <th>Знижка</th>
+                        <th>Термін</th>
+                        <th>Дії</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in myDeals)
+                    {
+                        <tr>
+                            <td>@d.Title</td>
+                            <td><span class="badge bg-light text-dark">@d.Business?.Name</span></td>
+                            <td>@d.DiscountPercent%</td>
+                            <td>@d.EndDate.ToShortDateString()</td>
+                            <td>
+                                <button class="btn btn-sm btn-light" @onclick="() => EditDeal(d)">✏️</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+
+@if (showBusinessModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <EditForm Model="editingBusiness" OnValidSubmit="SaveBusiness">
+                    <div class="modal-header"><h5>Дані закладу</h5></div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label>Назва</label>
+                            <InputText @bind-Value="editingBusiness.Name" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label>Адреса</label>
+                            <InputText @bind-Value="editingBusiness.Address" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label>Телефон</label>
+                            <InputText @bind-Value="editingBusiness.Phone" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" @onclick="() => showBusinessModal = false">Закрити</button>
+                        <button type="submit" class="btn btn-primary">Зберегти</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+@if (showDealModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <EditForm Model="editingDeal" OnValidSubmit="SaveDeal">
+                    <div class="modal-header"><h5>Налаштування акції</h5></div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Для якого закладу?</label>
+                                <select class="form-select" @bind="editingDeal.BusinessId">
+                                    <option value="0">-- Оберіть --</option>
+                                    @foreach (var b in myBusinesses)
+                                    {
+                                        <option value="@b.BusinessId">@b.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Категорія</label>
+                                <select class="form-select" @bind="editingDeal.CategoryId">
+                                    @foreach (var c in categories)
+                                    {
+                                        <option value="@c.CategoryId">@c.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Назва акції (коротко)</label>
+                            <InputText @bind-Value="editingDeal.Title" class="form-control" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3"><label>Знижка (%)</label><InputNumber @bind-Value="editingDeal.DiscountPercent" class="form-control" /></div>
+                            <div class="col-md-6 mb-3"><label>К-сть купонів</label><InputNumber @bind-Value="editingDeal.CouponLimit" class="form-control" /></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" @onclick="() => showDealModal = false">Скасувати</button>
+                        <button type="submit" class="btn btn-success">Опублікувати</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string activeTab = "businesses";
+    private List<Business> myBusinesses = new();
+    private List<Deal> myDeals = new();
+    private List<Servicecategory> categories = new();
+
+    private bool showBusinessModal = false;
+    private Business editingBusiness = new();
+
+    private bool showDealModal = false;
+    private Deal editingDeal = new();
+
+    protected override void OnInitialized()
+    {
+        if (Auth.CurrentUser == null || !Auth.IsBusinessOwner)
+        {
+            Nav.NavigateTo("/login");
+            return;
         }
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        // Отримуємо бізнеси поточного власника (використовуємо поле OwnerUserId з моделі Business.cs)
+        myBusinesses = BusinessService.GetAll()
+            .Where(b => b.OwnerUserId == Auth.CurrentUser.UserId)
+            .ToList();
+
+        var businessIds = myBusinesses.Select(b => b.BusinessId).ToList();
+        myDeals = DealService.GetAll()
+            .Where(d => businessIds.Contains(d.BusinessId))
+            .ToList();
+
+        categories = CategoryService.GetAll();
+    }
+
+    // Логіка для бізнесів
+    private void PrepareCreateBusiness() { editingBusiness = new Business { OwnerUserId = Auth.CurrentUser.UserId }; showBusinessModal = true; }
+    private void EditBusiness(Business b) { editingBusiness = b; showBusinessModal = true; }
+    private void SaveBusiness()
+    {
+        if (editingBusiness.BusinessId == 0) BusinessService.Create(editingBusiness);
+        else BusinessService.Update(editingBusiness);
+        showBusinessModal = false;
+        LoadData();
+    }
+
+    // Логіка для акцій
+    private void PrepareCreateDeal() { editingDeal = new Deal { StartDate = DateTime.Now, EndDate = DateTime.Now.AddDays(7), IsActive = true }; showDealModal = true; }
+    private void EditDeal(Deal d) { editingDeal = d; showDealModal = true; }
+    private void SaveDeal()
+    {
+        if (editingDeal.BusinessId == 0) return;
+        if (editingDeal.DealId == 0) DealService.Create(editingDeal);
+        else DealService.Update(editingDeal);
+        showDealModal = false;
+        LoadData();
     }
 }
