@@ -98,7 +98,7 @@ public class DealService: IDealService
 
         if (deal != null)
         {
-            if (deal.CouponLimit == 0)
+            if (!deal.IsActive)
             {
                 _context.Deals.Remove(deal);
                 _context.SaveChanges();

@@ -21,6 +21,7 @@ public class UserServiceTest
         _service = new UserService(_context);
     }
 
+
     private User CreateUser(
         string email = "test@test.com",
         string password = "password123")

@@ -193,11 +193,14 @@
     private void PrepareCreate()
     {
         modalError = null;
+
+        string randomPart = Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
+
         currentCoupon = new Coupon
-            {
-                ExpirationDate = DateTime.Now.AddDays(7),
-                Code = Guid.NewGuid().ToString().Substring(0, 8).ToUpper()
-            };
+        {
+            ExpirationDate = DateTime.Now.AddDays(7),
+            Code = $"PKN-{randomPart}"
+        };
         isEditing = true;
     }
 

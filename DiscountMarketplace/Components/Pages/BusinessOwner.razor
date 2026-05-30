@@ -32,15 +32,36 @@
         <div class="row row-cols-1 row-cols-md-2 g-4">
             @foreach (var b in myBusinesses)
             {
+                var canDelete = !b.Deals.Any(d => d.IsActive); 
+    
                 <div class="col">
                     <div class="card h-100 shadow-sm">
                         <div class="card-body">
+
                             <h5 class="card-title">@b.Name</h5>
                             <p class="card-text text-muted">@b.Address</p>
-                            <div class="d-flex justify-content-between">
-                                <span class="badge bg-info">Акцій: @b.Deals.Count</span>
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditBusiness(b)">Редагувати</button>
+
+                            <div class="d-flex justify-content-between align-items-center">
+
+                                <span class="badge bg-info">
+                                    Акцій: @b.Deals.Count
+                                </span>
+
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary me-2"
+                                            @onclick="() => EditBusiness(b)">
+                                        Редагувати
+                                    </button>
+
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => DeleteBusiness(b.BusinessId)"
+                                            disabled="@(!canDelete)">
+                                        Видалити
+                                    </button>
+                                </div>
+
                             </div>
+
                         </div>
                     </div>
                 </div>
@@ -62,30 +83,99 @@
         </div>
 
         <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
+            <table class="table table-hover text-nowrap align-middle">
+
+                <thead class="table-dark">
                     <tr>
+                        <th>Фото</th>
                         <th>Назва</th>
-                        <th>Заклад</th>
-                        <th>Знижка</th>
-                        <th>Термін</th>
+                        <th>Бізнес</th>
+                        <th>Категорія</th>
+                        <th>Ціна (Знижка)</th>
+                        <th>Купони</th>
+                        <th>Період</th>
+                        <th>Статус</th>
                         <th>Дії</th>
                     </tr>
                 </thead>
+
                 <tbody>
-                    @foreach (var d in myDeals)
+                    @foreach (var deal in myDeals)
                     {
                         <tr>
-                            <td>@d.Title</td>
-                            <td><span class="badge bg-light text-dark">@d.Business?.Name</span></td>
-                            <td>@d.DiscountPercent%</td>
-                            <td>@d.EndDate.ToShortDateString()</td>
-                            <td>
-                                <button class="btn btn-sm btn-light" @onclick="() => EditDeal(d)">✏️</button>
+
+                            <td class="text-nowrap">
+                                @if (!string.IsNullOrEmpty(deal.ImageUrl))
+                                {
+                                    <img src="@deal.ImageUrl"
+                                         style="width: 100px; height: 50px; object-fit: contain;" />
+                                }
                             </td>
+
+                            <td class="text-nowrap">
+                                <strong>@deal.Title</strong>
+                            </td>
+
+                            <td class="text-nowrap">
+                                @deal.Business?.Name
+                            </td>
+
+                            <td class="text-nowrap">
+                                <span class="badge bg-secondary">
+                                    @deal.Category?.Name
+                                </span>
+                            </td>
+
+                            <td class="text-nowrap">
+                                <del class="text-muted small">@deal.OriginalPrice</del>
+                                <span class="text-danger fw-bold ">
+                                    @deal.DiscountPrice
+                                </span>
+                                <span class="badge bg-success">
+                                    @deal.DiscountPercent%
+                                </span>
+                            </td>
+
+                            <td class="text-nowrap">
+                                <span > @deal.CouponLimit</span>
+                            </td>
+
+                            <td class="text-nowrap small">
+                                @deal.StartDate.ToShortDateString()
+                                -
+                                @deal.EndDate.ToShortDateString()
+                            </td>
+
+                            <td class="text-nowrap">
+                                @if (deal.IsActive == true &&
+                               deal.EndDate >= DateTime.Now &&
+                               deal.StartDate <= DateTime.Now)
+                                {
+                                    <span class="badge bg-primary">Активна</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">Неактивна</span>
+                                }
+                            </td>
+
+                            <td class="text-nowrap">
+                                <button class="btn btn-sm btn-outline-warning me-2"
+                                        @onclick="() => EditDeal(deal)">
+                                    Змінити
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => DeleteDeal(deal.DealId)"
+                                        disabled="@(deal.IsActive == true)">
+                                    Видалити
+                                </button>
+                            </td>
+
                         </tr>
                     }
                 </tbody>
+
             </table>
         </div>
     }
@@ -129,44 +219,110 @@
     <div class="modal d-block" style="background:rgba(0,0,0,0.5)">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <EditForm Model="editingDeal" OnValidSubmit="SaveDeal">
-                    <div class="modal-header"><h5>Налаштування акції</h5></div>
+
+                <EditForm Model="@editingDeal" OnValidSubmit="SaveDeal">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger small" />
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">Налаштування акції</h5>
+                    </div>
+
                     <div class="modal-body">
+
+                        <div class="mb-3">
+                            <label class="form-label">Заголовок акції</label>
+                            <InputText class="form-control" @bind-Value="editingDeal.Title" />
+                        </div>
+
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label>Для якого закладу?</label>
-                                <select class="form-select" @bind="editingDeal.BusinessId">
-                                    <option value="0">-- Оберіть --</option>
+                                <label class="form-label">Бізнес</label>
+                                <InputSelect class="form-select" @bind-Value="editingDeal.BusinessId">
+                                    <option value="0">-- Оберіть бізнес --</option>
                                     @foreach (var b in myBusinesses)
                                     {
                                         <option value="@b.BusinessId">@b.Name</option>
                                     }
-                                </select>
+                                </InputSelect>
                             </div>
+
                             <div class="col-md-6 mb-3">
-                                <label>Категорія</label>
-                                <select class="form-select" @bind="editingDeal.CategoryId">
+                                <label class="form-label">Категорія</label>
+                                <InputSelect class="form-select" @bind-Value="editingDeal.CategoryId">
+                                    <option value="0">-- Оберіть категорію --</option>
                                     @foreach (var c in categories)
                                     {
                                         <option value="@c.CategoryId">@c.Name</option>
                                     }
-                                </select>
+                                </InputSelect>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label>Назва акції (коротко)</label>
-                            <InputText @bind-Value="editingDeal.Title" class="form-control" />
-                        </div>
+
                         <div class="row">
-                            <div class="col-md-6 mb-3"><label>Знижка (%)</label><InputNumber @bind-Value="editingDeal.DiscountPercent" class="form-control" /></div>
-                            <div class="col-md-6 mb-3"><label>К-сть купонів</label><InputNumber @bind-Value="editingDeal.CouponLimit" class="form-control" /></div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Початкова ціна</label>
+                                <InputNumber class="form-control" @bind-Value="editingDeal.OriginalPrice" />
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Знижка %</label>
+                                <InputNumber class="form-control" @bind-Value="editingDeal.DiscountPercent" />
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Ліміт купонів</label>
+                                <InputNumber class="form-control" @bind-Value="editingDeal.CouponLimit" />
+                            </div>
                         </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Дата початку</label>
+                                <InputDate class="form-control" @bind-Value="editingDeal.StartDate" />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Дата завершення</label>
+                                <InputDate class="form-control" @bind-Value="editingDeal.EndDate" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Опис акції</label>
+                            <InputTextArea class="form-control" @bind-Value="editingDeal.Description" rows="3" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">URL фото</label>
+                            <InputText class="form-control" @bind-Value="editingDeal.ImageUrl" placeholder="/images/1.jpg" />
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox class="form-check-input" @bind-Value="editingDeal.IsActive" id="isActiveSwitch" />
+                            <label class="form-check-label" for="isActiveSwitch">
+                                Активна пропозиція
+                            </label>
+                        </div>
+
                     </div>
+
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-light" @onclick="() => showDealModal = false">Скасувати</button>
-                        <button type="submit" class="btn btn-success">Опублікувати</button>
+                        <button type="button"
+                                class="btn btn-secondary"
+                                @onclick="() => showDealModal = false">
+                            Скасувати
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-success"
+                                disabled="@(editingDeal.BusinessId == 0 || editingDeal.CategoryId == 0)">
+                            Зберегти
+                        </button>
                     </div>
+
                 </EditForm>
+
             </div>
         </div>
     </div>
@@ -229,6 +385,18 @@
         if (editingDeal.DealId == 0) DealService.Create(editingDeal);
         else DealService.Update(editingDeal);
         showDealModal = false;
+        LoadData();
+    }
+
+    private void DeleteDeal(int dealId)
+    {
+        DealService.Delete(dealId);
+        LoadData();
+    }
+
+    private void DeleteBusiness(int businessId)
+    {
+        BusinessService.Delete(businessId);
         LoadData();
     }
 }

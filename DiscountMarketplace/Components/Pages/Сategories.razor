@@ -35,7 +35,6 @@
         <table class="table table-hover">
             <thead class="table-dark">
                 <tr>
-                    <th>Іконка</th>
                     <th>Назва</th>
                     <th>Опис</th>
                     <th>Дії</th>
@@ -45,12 +44,6 @@
                 @foreach (var cat in categories)
                 {
                     <tr>
-                        <td style="width: 50px;">
-                            @if (!string.IsNullOrEmpty(cat.IconUrl))
-                            {
-                                <img src="@cat.IconUrl" alt="icon" style="width: 32px; height: 32px; object-fit: contain;" />
-                            }
-                        </td>
                         <td><strong>@cat.Name</strong></td>
                         <td>@cat.Description</td>
                         <td>

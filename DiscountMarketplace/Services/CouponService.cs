@@ -58,6 +58,7 @@ public class CouponService: ICouponService
                 deal.CouponLimit -= 1;
 
                 coupon.CreatedAt = DateTime.Now;
+                coupon.ExpirationDate = DateTime.Now.AddDays(14);
                 coupon.Status = "Active";
 
                 _context.Coupons.Add(coupon);

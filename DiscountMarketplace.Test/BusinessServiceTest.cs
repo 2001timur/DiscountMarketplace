@@ -26,7 +26,7 @@ public class BusinessServiceTest
         _service = new BusinessService(_context);
     }
 
-    private User CreateUser(string email = "owner@test.com")
+        private User CreateUser(string email = "owner@test.com")
     {
         return new User
         {

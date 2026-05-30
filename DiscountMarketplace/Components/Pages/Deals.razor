@@ -36,9 +36,10 @@
     }
     else
     {
-        <table class="table table-hover">
+        <table class="table table-hover text-nowrap">
             <thead class="table-dark">
                 <tr>
+                    <th>Фото</th>
                     <th>Назва</th>
                     <th>Бізнес</th>
                     <th>Категорія</th>
@@ -53,6 +54,12 @@
                 @foreach (var deal in deals)
                 {
                     <tr>
+                        <td >
+                            @if (!string.IsNullOrEmpty(deal.ImageUrl))
+                            {
+                                <img src="@deal.ImageUrl" alt="image" style="width: 100px; height: 50px; object-fit: contain;" />
+                            }
+                        </td>
                         <td><strong>@deal.Title</strong></td>
                         <td>@deal.Business?.Name</td>
                         <td><span class="badge bg-secondary">@deal.Category?.Name</span></td>
@@ -61,9 +68,8 @@
                             <span class="text-danger fw-bold">@deal.DiscountPrice</span>
                             <span class="badge bg-success">@deal.DiscountPercent%</span>
                         </td>
-                        <td>
-                            <span class="fw-bold">@(deal.Coupons?.Count ?? 0)</span>
-                            <span class="text-muted">/ @deal.CouponLimit</span>
+                        <td class="text-nowrap">
+                            <span> @deal.CouponLimit</span>
                         </td>
                         <td class="small">
                             @deal.StartDate.ToShortDateString() - @deal.EndDate.ToShortDateString()
@@ -82,7 +88,7 @@
                             <button class="btn btn-sm btn-outline-warning me-2" @onclick="() => PrepareEdit(deal)">Редагувати</button>
                             <button class="btn btn-sm btn-outline-danger"
                                     @onclick="() => DeleteDeal(deal.DealId)"
-                                    disabled="@(deal.CouponLimit - (deal.Coupons?.Count ?? 0) > 0)">
+                                    disabled="@(deal.IsActive == true)">
                                 Видалити
                             </button>
                         </td>
@@ -172,6 +178,11 @@
                         <div class="mb-3">
                             <label class="form-label">Опис акції</label>
                             <InputTextArea class="form-control" @bind-Value="currentDeal.Description" rows="3" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">URL фото</label>
+                            <InputText class="form-control" @bind-Value="currentDeal.ImageUrl" placeholder="/images/1.jpg" />
                         </div>
 
                         <div class="mb-3">

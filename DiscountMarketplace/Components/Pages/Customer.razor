@@ -127,19 +127,22 @@
         userCouponsCount = allCoupons.Count(c => c.UserId == Auth.CurrentUser.UserId);
     }
 
+
     private void BuyCoupon(Deal deal)
     {
         try
         {
+            string randomPart = Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
+
             var newCoupon = new Coupon
-                {
-                    UserId = Auth.CurrentUser.UserId,
-                    DealId = deal.DealId,
-                    Code = Guid.NewGuid().ToString().Substring(0, 8).ToUpper(),
-                    Status = "Active", 
-                    CreatedAt = DateTime.Now,
-                    ExpirationDate = DateTime.Now.AddDays(30)
-                };
+            {
+                UserId = Auth.CurrentUser.UserId,
+                DealId = deal.DealId,
+                Code = $"PKN-{randomPart}",
+                Status = "Active", 
+                CreatedAt = DateTime.Now,
+                ExpirationDate = DateTime.Now.AddDays(30)
+            };
 
             CouponService.Create(newCoupon);
 
